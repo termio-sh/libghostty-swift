@@ -13,6 +13,11 @@ on:
         required: false
         type: string
         default: ""
+      skip_release:
+        description: "Build and test only, without publishing a release. Use to validate a branch."
+        required: false
+        type: boolean
+        default: false
   schedule:
     - cron: "23 6 * * 1"
 
