@@ -32,3 +32,10 @@ modifications inside ad-hoc build script edits.
   init; that block is preserved inside the new `.exec` switch arm. `0001` and
   `0009` were likewise re-targeted to this ref (renamed `lib_shared`, restructured
   SIMD flags list).
+- `0010-metal-present-backpressure.sh` — never draw into an IOSurface the
+  compositor may still be reading. The swap chain frees a target when the GPU
+  is done with it, not when the layer has moved off it, so a late main thread
+  (an embedder re-rendering its own UI under a burst of output) let the
+  renderer draw the next frame into the surface on screen — a torn pane with
+  a vertical seam (termio-sh/termio#506). Anchored after `0005`'s iOS present
+  branch.
