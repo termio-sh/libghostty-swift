@@ -86,12 +86,35 @@ layer: objc.Object,
 /// What the compositor holds of ours, shared between the main thread (which
 /// moves the layer's contents) and the renderer thread (which must not draw
 /// into a surface until the layer has moved off it).
+///
+/// Reference counted and heap-allocated rather than a field of the renderer:
+/// a present block can still be queued on the main thread after the renderer
+/// that dispatched it has been torn down, and the block must find the state
+/// alive when it runs. The renderer holds one reference, each queued present
+/// holds one more.
 pub const PresentState = struct {{
+    refs: std.atomic.Value(u32) = .{{ .raw = 1 }},
     /// Presents handed to the main queue that have not run yet.
     pending: std.atomic.Value(u32) = .{{ .raw = 0 }},
     /// The surface currently assigned as the layer's contents, by address.
     /// Zero before the first present.
     displayed: std.atomic.Value(usize) = .{{ .raw = 0 }},
+
+    pub fn create() Allocator.Error!*PresentState {{
+        const state = try std.heap.c_allocator.create(PresentState);
+        state.* = .{{}};
+        return state;
+    }}
+
+    pub fn retain(self: *PresentState) void {{
+        _ = self.refs.fetchAdd(1, .seq_cst);
+    }}
+
+    pub fn release(self: *PresentState) void {{
+        if (self.refs.fetchSub(1, .seq_cst) == 1) {{
+            std.heap.c_allocator.destroy(self);
+        }}
+    }}
 }};
 """,
     "IOSurfaceLayer.zig present state",
@@ -128,8 +151,10 @@ layer = replace_exact(
     //       automatically retained when the block is copied, so we
     //       don't need to retain it ourselves like with the surface.
 
-    // Counted before the block exists, so a renderer that asks in between
-    // sees the present as queued rather than as landed.
+    // The block holds its own reference: it may run after the renderer that
+    // dispatched it is gone. Counted before the block exists, so a renderer
+    // that asks in between sees the present as queued rather than as landed.
+    state.retain();
     _ = state.pending.fetchAdd(1, .seq_cst);
 
     var block = SetSurfaceBlock.init(.{
@@ -177,7 +202,9 @@ layer = replace_exact(
 """,
     """    // See explanation of why we retain and release in `setSurface`.
     defer surface.release();
-    // Landed or discarded, this present is no longer queued.
+    // Landed or discarded, this present is no longer queued — and once that
+    // is recorded, the block's reference is dropped (defers run in reverse).
+    defer block.state.release();
     defer _ = block.state.pending.fetchSub(1, .seq_cst);
 """,
     "IOSurfaceLayer.zig callback pending",
@@ -211,8 +238,9 @@ metal = replace_exact(
     f"""layer: IOSurfaceLayer,
 
 /// {MARKER}
-/// Which of our surfaces the compositor holds — see `canDrawInto`.
-present_state: IOSurfaceLayer.PresentState = .{{}},
+/// Which of our surfaces the compositor holds — see `canDrawInto`. Owned by
+/// reference; queued present blocks hold their own.
+present_state: *IOSurfaceLayer.PresentState,
 """,
     "Metal.zig present_state field",
 )
@@ -237,13 +265,13 @@ metal = replace_exact(
     // iOS: always present synchronously — the render loop already runs on
     // the main thread, so the async GCD hop is unnecessary overhead.
     if (comptime builtin.os.tag == .ios) {{
-        try self.layer.setSurface(target.surface, &self.present_state);
+        try self.layer.setSurface(target.surface, self.present_state);
         return;
     }}
     if (sync) {{
-        self.layer.setSurfaceSync(target.surface, &self.present_state);
+        self.layer.setSurfaceSync(target.surface, self.present_state);
     }} else {{
-        try self.layer.setSurface(target.surface, &self.present_state);
+        try self.layer.setSurface(target.surface, self.present_state);
     }}
 }}
 
@@ -261,6 +289,48 @@ pub inline fn canDrawInto(self: *const Metal, target: *const Target) bool {{
 }}
 """,
     "Metal.zig present + canDrawInto",
+)
+
+metal = replace_exact(
+    metal,
+    """    var layer = try IOSurfaceLayer.init();
+    errdefer layer.release();
+""",
+    """    var layer = try IOSurfaceLayer.init();
+    errdefer layer.release();
+
+    const present_state = try IOSurfaceLayer.PresentState.create();
+    errdefer present_state.release();
+""",
+    "Metal.zig init present_state",
+)
+
+metal = replace_exact(
+    metal,
+    """        .layer = layer,
+        .device = device,
+""",
+    """        .layer = layer,
+        .present_state = present_state,
+        .device = device,
+""",
+    "Metal.zig init struct literal",
+)
+
+metal = replace_exact(
+    metal,
+    """pub fn deinit(self: *Metal) void {
+    self.queue.release();
+    self.device.release();
+    self.layer.release();
+""",
+    """pub fn deinit(self: *Metal) void {
+    self.queue.release();
+    self.device.release();
+    self.layer.release();
+    self.present_state.release();
+""",
+    "Metal.zig deinit",
 )
 
 pending.append((metal_path, metal, "Metal.zig"))
@@ -303,7 +373,7 @@ pending.append((generic_path, generic, "generic.zig"))
 # Postconditions.
 # ──────────────────────────────────────────────────────────────────────
 require(layer.count("state: *PresentState") == 3, "IOSurfaceLayer.zig: state threaded through setSurface, setSurfaceSync and the block")
-require(metal.count("&self.present_state") == 3, "Metal.zig: every present path carries the state")
+require(metal.count("target.surface, self.present_state)") == 3, "Metal.zig: every present path carries the state")
 require(generic.count(MARKER) == 1, "generic.zig: marker present once")
 
 for path, text, label in pending:
