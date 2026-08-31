@@ -288,12 +288,22 @@ public final class TerminalController {
     }
 
     func handleWakeup() {
+        // Always drain the app mailbox, even for a surface that is not on
+        // screen. Ghostty's stream handler pushes surface messages (title
+        // changes above all) into a fixed 64-slot queue that only
+        // `ghostty_app_tick` empties, and once it fills the push blocks the
+        // *producing* thread inside `ghostty_surface_write_buffer` — for a
+        // host-managed backend that is the host's own read pump, which then
+        // stops feeding the terminal entirely: the viewport freezes on its
+        // last frame and everything the host derives from that stream
+        // freezes with it. Visibility may gate *rendering* (the wakeup
+        // callback below), never message processing.
+        tick()
         guard shouldProcessWakeup?() ?? true else {
-            TerminalDebugLog.log(.lifecycle, "wakeup suspended")
+            TerminalDebugLog.log(.lifecycle, "wakeup render suspended")
             return
         }
 
-        tick()
         onWakeup?()
     }
 
