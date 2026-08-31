@@ -17,6 +17,10 @@ private enum TerminalCallbacks {
         guard let userdata else { return }
         let controller = Unmanaged<TerminalController>.fromOpaque(userdata)
             .takeUnretainedValue()
+        // One hop in flight at a time: a burst of wakeups from a streaming
+        // process coalesces into the hop already queued (see
+        // `beginWakeupDispatch`), which drains everything the burst raised.
+        guard controller.beginWakeupDispatch() else { return }
         terminalRunOnMain {
             controller.handleWakeup()
         }

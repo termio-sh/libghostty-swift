@@ -59,6 +59,29 @@ public final class TerminalController {
     var onWakeup: (() -> Void)?
     var shouldProcessWakeup: (() -> Bool)?
 
+    /// Collapses a burst of wakeups into at most one queued main-thread hop.
+    /// Ghostty raises a wakeup per output batch, from its own threads; each
+    /// used to become its own `DispatchQueue.main.async` block, so a process
+    /// streaming output could flood the main queue with `handleWakeup` calls
+    /// — and since `handleWakeup` now always ticks (hidden surfaces
+    /// included), an uncoalesced burst would pay one `ghostty_app_tick` per
+    /// block for work a single drain covers. The flag is cleared *before*
+    /// the tick, so a wakeup arriving mid-drain still queues the next hop —
+    /// no event is lost, there is just never more than one hop in flight.
+    nonisolated(unsafe) private var wakeupDispatchQueued = false
+    private let wakeupDispatchLock = NSLock()
+
+    /// Claims the single in-flight wakeup dispatch slot. Callable from any
+    /// thread (ghostty raises wakeups off-main). Returns false when a hop
+    /// is already queued and this wakeup is covered by it.
+    nonisolated func beginWakeupDispatch() -> Bool {
+        wakeupDispatchLock.lock()
+        defer { wakeupDispatchLock.unlock() }
+        guard !wakeupDispatchQueued else { return false }
+        wakeupDispatchQueued = true
+        return true
+    }
+
     // MARK: - Config Resolution State
 
     /// The base config before theme/colorScheme are applied.
@@ -288,6 +311,12 @@ public final class TerminalController {
     }
 
     func handleWakeup() {
+        // Release the dispatch slot before draining: a wakeup that lands
+        // while the tick below runs must queue the next hop, or its events
+        // would sit in the mailbox until something else woke the app.
+        wakeupDispatchLock.lock()
+        wakeupDispatchQueued = false
+        wakeupDispatchLock.unlock()
         // Always drain the app mailbox, even for a surface that is not on
         // screen. Ghostty's stream handler pushes surface messages (title
         // changes above all) into a fixed 64-slot queue that only
