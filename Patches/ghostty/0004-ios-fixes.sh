@@ -303,6 +303,40 @@ else:
     stage(metallib_path, metallib, "src/build/MetallibStep.zig")
     messages.append("[+] patched: Metal shaders compile for iOS again")
 
+# ──────────────────────────────────────────────────────────────────────
+# 6. Enable blocks when translating the Apple headers
+#
+#    Apple's headers declare block types (`CGPathApplyBlock` and friends), so
+#    translating them needs `-fblocks`. Aro turns blocks on by itself only
+#    when it can prove the target supports them, which it does for macOS and
+#    not for iOS, so an iOS translation dies in CGPath.h with "blocks are not
+#    enabled". Upstream passed the flag explicitly until translate-c was
+#    refactored (ghostty c0c5473da) and it was dropped; upstream never built
+#    this module for anything but macOS, so nothing there noticed.
+# ──────────────────────────────────────────────────────────────────────
+macos_build_path, macos_build = load("pkg/macos/build.zig")
+
+if "-fblocks" in macos_build:
+    messages.append("[+] macos_c translation already enables blocks")
+else:
+    macos_build = replace_exact(
+        macos_build,
+        """        ) } },
+        .target = target,
+        .optimize = optimize,
+    });
+""",
+        """        ) } },
+        .target = target,
+        .optimize = optimize,
+        .extra_args = &.{"-fblocks"},
+    });
+""",
+        "pkg/macos/build.zig macos_c translation args",
+    )
+    stage(macos_build_path, macos_build, "pkg/macos/build.zig")
+    messages.append("[+] patched: macos_c translation enables blocks")
+
 # All transformations succeeded — commit them.
 for path, body, _ in pending:
     path.write_text(body)
