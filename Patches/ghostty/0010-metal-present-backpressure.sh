@@ -343,12 +343,12 @@ generic = generic_path.read_text()
 generic = replace_exact(
     generic,
     """            // Wait for a frame to be available.
-            const frame = try self.swap_chain.nextFrame();
-            errdefer self.swap_chain.releaseFrame();
+            const frame = swap_chain.nextFrame();
+            errdefer swap_chain.releaseFrame();
 """,
     f"""            // Wait for a frame to be available.
-            const frame = try self.swap_chain.nextFrame();
-            errdefer self.swap_chain.releaseFrame();
+            const frame = swap_chain.nextFrame();
+            errdefer swap_chain.releaseFrame();
 
             // {MARKER}
             // The compositor may still be reading this frame's target: the
@@ -356,12 +356,16 @@ generic = replace_exact(
             // layer has moved on. Draw nothing this tick rather than into a
             // surface that is on screen, and keep the frame dirty so the
             // next tick draws it.
+            //
+            // False, so the caller leaves the display link alone: the frame
+            // is still dirty, and `syncDisplayLink` keeps a link running
+            // exactly while `cells_rebuilt` is set.
             if (@hasDecl(GraphicsAPI, "canDrawInto") and
                 !self.api.canDrawInto(&frame.target))
             {{
                 self.cells_rebuilt = true;
-                self.swap_chain.releaseFrame();
-                return;
+                swap_chain.releaseFrame();
+                return false;
             }}
 """,
     "generic.zig drawFrame skip",
