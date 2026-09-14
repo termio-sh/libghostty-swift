@@ -44,8 +44,8 @@ let package = Package(
         ),
         .binaryTarget(
             name: "libghostty",
-            url: "https://github.com/termio-sh/libghostty-swift/releases/download/storage.1.0.25/GhosttyKit.xcframework.zip",
-            checksum: "16a9e750539aad5660bb0fdb0c8e0ed5118ed2a8eeb323001d650e1276c492ae"
+            url: "https://github.com/termio-sh/libghostty-swift/releases/download/storage.1.0.26/GhosttyKit.xcframework.zip",
+            checksum: "dd68526f7376b31359cf8cdaa6401262652a925cb5c82ae54ff9e2c507fd9cfe"
         ),
         .testTarget(
             name: "GhosttyKitTest",
