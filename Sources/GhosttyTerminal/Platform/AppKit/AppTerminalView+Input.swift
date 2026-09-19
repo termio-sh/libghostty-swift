@@ -11,14 +11,22 @@
     import UniformTypeIdentifiers
 
     extension AppTerminalView {
-        /// Whether the general pasteboard holds an image with no text form
-        /// (e.g. a fresh screenshot). `paste_from_clipboard` can only write
-        /// text into the pty, so such a paste must instead reach the running
-        /// TUI as a Ctrl+V keystroke — agents like Claude Code respond to it
-        /// by reading the image straight off the system clipboard.
+        /// Whether the general pasteboard holds an image and nothing that
+        /// could be pasted as text (e.g. a fresh screenshot).
+        /// `paste_from_clipboard` can only write text into the pty, so such a
+        /// paste must instead reach the running TUI as a Ctrl+V keystroke —
+        /// agents like Claude Code respond to it by reading the image straight
+        /// off the system clipboard.
+        ///
+        /// A *file* reference disqualifies the clipboard even when no string
+        /// flavor is present: a copied `.png` has a path, and that path is
+        /// what `terminalPasteText` will paste. Testing the same thing that
+        /// read does — rather than the string flavor alone — keeps the two
+        /// from disagreeing about exactly the clipboards a copied image
+        /// produces.
         private var pasteboardHoldsImageOnly: Bool {
             let pasteboard = NSPasteboard.general
-            guard pasteboard.string(forType: .string) == nil else { return false }
+            guard pasteboard.terminalPasteText() == nil else { return false }
             return pasteboard.canReadItem(
                 withDataConformingToTypes: [UTType.image.identifier]
             )
