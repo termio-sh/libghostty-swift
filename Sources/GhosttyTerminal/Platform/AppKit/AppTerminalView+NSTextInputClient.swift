@@ -63,9 +63,15 @@
             guard let surface else { return .zero }
 
             let point = surface.imePoint()
+            // Ghostty reports the cursor cell's BOTTOM edge in top-left
+            // coordinates, so flipping it alone already lands on the rect's
+            // AppKit origin. Subtracting the cell height again drops the rect
+            // onto the next line down, which pushes the candidate window a line
+            // too low -- and onto the text being typed once it has to flip up
+            // for lack of room below.
             let viewRect = NSRect(
                 x: point.x,
-                y: bounds.height - point.y - point.height,
+                y: bounds.height - point.y,
                 width: point.width,
                 height: point.height
             )
