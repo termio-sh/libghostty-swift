@@ -66,11 +66,18 @@ private enum TerminalCallbacks {
         mime == "text/plain" || mime.hasPrefix("text/plain;")
     }
 
+    /// What the clipboard should paste into the terminal. On the Mac a copied
+    /// *file* resolves to its path (see `terminalPasteText`); everything else,
+    /// on both platforms, is the text on the clipboard.
+    ///
+    /// This serves OSC 52 reads as well as the paste keystroke, which is
+    /// deliberate and matches ghostty: a program asking the terminal what the
+    /// clipboard holds should get the same answer the user would have pasted.
     private static func pasteboardText() -> String? {
         #if canImport(UIKit)
             return UIPasteboard.general.string
         #elseif canImport(AppKit)
-            return NSPasteboard.general.string(forType: .string)
+            return NSPasteboard.general.terminalPasteText()
         #else
             return nil
         #endif
