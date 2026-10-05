@@ -321,14 +321,22 @@ metal = replace_exact(
     metal,
     """pub fn deinit(self: *Metal) void {
     self.queue.release();
-    self.device.release();
+
+    // The MTLDevice is app-scoped and destroyed
+    // by the render device, not by us.
+
     self.layer.release();
+}
 """,
     """pub fn deinit(self: *Metal) void {
     self.queue.release();
-    self.device.release();
+
+    // The MTLDevice is app-scoped and destroyed
+    // by the render device, not by us.
+
     self.layer.release();
     self.present_state.release();
+}
 """,
     "Metal.zig deinit",
 )

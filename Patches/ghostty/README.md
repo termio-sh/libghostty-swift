@@ -39,3 +39,11 @@ modifications inside ad-hoc build script edits.
   renderer draw the next frame into the surface on screen — a torn pane with
   a vertical seam (termio-sh/termio#506). Anchored after `0005`'s iOS present
   branch.
+- `0008-macos-metal-texture-storage.sh` and `0010-metal-present-backpressure.sh`
+  — re-targeted onto ghostty `35a81a9`, which moved the Metal device metadata
+  out of `src/renderer/Metal.zig` into `src/renderer/metal/Device.zig` and made
+  the device app-scoped. `0008` now adds `default_texture_storage_mode` in
+  `Device.zig` and rewrites the four texture call sites to read it through
+  `self.device`; the marker that makes it re-runnable moved to `Device.zig` with
+  the field. `0010`'s `deinit` anchor lost `self.device.release()`, because the
+  renderer no longer owns the device.
