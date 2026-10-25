@@ -35,7 +35,7 @@ index be61f029f..2b3965ddd 100644
 -    } else {
 -        if (b.lazyDependency("zlib", .{
 -            .target = b.graph.host,
--            .optimize = .ReleaseFast,
+-            .optimize = .fast,
 -        })) |zlib_dep| {
 -            exe.root_module.linkLibrary(zlib_dep.artifact("z"));
 -        }

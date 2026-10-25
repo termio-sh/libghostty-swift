@@ -209,7 +209,7 @@ jobs:
             variant: iphonesimulator
           # Mac Catalyst is dropped: zig 0.16 removed `macabi` from its ABI
           # enum entirely, so `*-ios-macabi` no longer parses as a target, and
-          # ghostty main requires zig 0.16. Nothing consuming this package
+          # ghostty main requires zig 0.17. Nothing consuming this package
           # builds for Catalyst — termio is macOS-only plus a UIKit iOS app
           # with SUPPORTS_MACCATALYST unset. Restore these two entries if zig
           # brings the ABI back.
@@ -220,7 +220,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.16.0
+          version: 0.17.0
 
       - name: Clone Ghostty
         run: |

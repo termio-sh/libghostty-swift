@@ -498,8 +498,10 @@ old_url = '"https://deps.files.ghostty.org/libxev-34fa50878aec6e5fa8f532867001ab
 new_url = '"https://github.com/mitchellh/libxev/archive/7e7d2f2ab4700544657f8ec268715c8ef320d839.tar.gz"'
 old_hash = '"libxev-0.0.0-86vtc4IcEwCqEYxEYoN_3KXmc6A9VLcm22aVImfvecYs"'
 new_hash = '"libxev-0.0.0-86vtcwE9EwB942iWRnaNMXHv3n0BeLAs_tVhrs5cT8cQ"'
-upstream_url = '"https://deps.files.ghostty.org/libxev-9ce8e8e6ff89e583258a7f8e7adeeeaeae8611bf.tar.gz"'
-upstream_hash = '"libxev-0.0.0-86vtcwIRFADbH4hk-EjROXxlrKIRPQdA41XiTSytYO-F"'
+# 819ffa1 is 9ce8e8e plus the two Zig 0.17 commits, and is 8 ahead and 0
+# behind 7e7d2f2 (GitHub compare, 2026-10-25), so it still carries the fix.
+upstream_url = '"https://deps.files.ghostty.org/libxev-819ffa180ca20e31c7eded74e2e1aceb1eab557f.tar.gz"'
+upstream_hash = '"libxev-0.0.0-86vtc8QQFACz0sVc7U-VDiDIgH-XfBuEY5JpABLjHNpn"'
 
 if new_url in zon and new_hash in zon:
     messages.append("[+] libxev already updated")
@@ -510,7 +512,7 @@ elif old_url in zon:
     messages.append("[+] patched build.zig.zon: updated libxev for iOS mach port fix")
 elif upstream_url in zon and upstream_hash in zon:
     messages.append(
-        "[+] libxev repin not applicable: upstream already pins libxev 9ce8e8e"
+        "[+] libxev repin not applicable: upstream already pins libxev 819ffa1"
     )
 else:
     print(
