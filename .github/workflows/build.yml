@@ -227,6 +227,31 @@ jobs:
           git clone https://github.com/ghostty-org/ghostty ./References/ghostty-upstream
           git -C ./References/ghostty-upstream checkout "${{ needs.prepare.outputs.build_ref }}"
 
+      - name: Patch Zig with ghostty's toolchain patches
+        # ghostty patches its Zig in flake.nix (nix/patches/zig-<version>-*.patch):
+        # stock Zig 0.17's processReplace instantiates spawnDarwin for iOS,
+        # which does not compile. This workflow installs Zig without Nix, so it
+        # applies the same patches to the installed std. Idempotent, because
+        # setup-zig may restore a copy that a previous run already patched.
+        run: |
+          set -euo pipefail
+          zig_root=$(dirname "$(zig env | sed -n 's/^ *\.lib_dir = "\(.*\)",$/\1/p')")
+          series=$(zig version | cut -d. -f1,2)
+          for patch_file in ./References/ghostty-upstream/nix/patches/zig-"$series"-*.patch; do
+            [ -e "$patch_file" ] || continue
+            # -f: never let patch guess the direction. Without it a reverse
+            # dry run on an unpatched std "succeeds" by assuming -R itself.
+            if patch -d "$zig_root" -p1 -f -s --dry-run < "$patch_file" >/dev/null 2>&1; then
+              patch -d "$zig_root" -p1 -f -s < "$patch_file"
+              echo "applied: $patch_file"
+            elif patch -d "$zig_root" -p1 -R -f -s --dry-run < "$patch_file" >/dev/null 2>&1; then
+              echo "already applied: $patch_file"
+            else
+              echo "does not apply: $patch_file" >&2
+              exit 1
+            fi
+          done
+
       - name: Build Target
         run: |
           export ZIG_CPU="${{ matrix.cpu }}"
