@@ -12,6 +12,10 @@ let package = Package(
         .library(name: "GhosttyTerminal", targets: ["GhosttyTerminal"]),
         .library(name: "ShellCraftKit", targets: ["ShellCraftKit"]),
         .library(name: "GhosttyTheme", targets: ["GhosttyTheme"]),
+        // libghostty-vt, the terminal core without ghostty's surface, for a
+        // host that renders it itself. Built from the same ghostty commit as
+        // `libghostty`, so the two can be linked into one app.
+        .library(name: "GhosttyVt", targets: ["GhosttyVt"]),
     ],
     dependencies: [
         .package(url: "https://github.com/Lakr233/MSDisplayLink.git", from: "2.1.0"),
@@ -46,9 +50,14 @@ let package = Package(
             name: "libghostty",
             path: "BinaryTarget/GhosttyKit.xcframework"
         ),
+        .binaryTarget(
+            name: "GhosttyVt",
+            path: "BinaryTarget/GhosttyVt.xcframework"
+        ),
         .testTarget(
             name: "GhosttyKitTest",
-            dependencies: ["GhosttyKit", "GhosttyTerminal", "GhosttyTheme", "ShellCraftKit"]
+            dependencies: ["GhosttyKit", "GhosttyTerminal", "GhosttyTheme", "ShellCraftKit", "GhosttyVt"],
+            linkerSettings: [.linkedLibrary("c++")]
         ),
     ]
 )

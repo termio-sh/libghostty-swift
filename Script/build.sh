@@ -93,13 +93,25 @@ fi
 ARTIFACTS_DIR="$ROOT_DIR/build/artifacts"
 XCFRAMEWORK_PATH="$ROOT_DIR/BinaryTarget/GhosttyKit.xcframework"
 XCFRAMEWORK_ZIP="$ROOT_DIR/build/GhosttyKit.xcframework.zip"
+VT_XCFRAMEWORK_PATH="$ROOT_DIR/BinaryTarget/GhosttyVt.xcframework"
+VT_XCFRAMEWORK_ZIP="$ROOT_DIR/build/GhosttyVt.xcframework.zip"
 
-rm -rf "$ARTIFACTS_DIR" "$XCFRAMEWORK_PATH" "$XCFRAMEWORK_ZIP"
+rm -rf "$ARTIFACTS_DIR" "$XCFRAMEWORK_PATH" "$XCFRAMEWORK_ZIP" "$VT_XCFRAMEWORK_PATH" "$VT_XCFRAMEWORK_ZIP"
 mkdir -p "$ARTIFACTS_DIR" "$(dirname "$XCFRAMEWORK_PATH")"
 
 echo "[*] zig version: $(zig version)"
 echo "[*] ghostty source: $SOURCE_DIR"
 echo "[*] platform groups: $PLATFORMS"
+
+# libghostty-vt is built from the same commit without the patch series, which
+# build-platform.sh applies to $SOURCE_DIR's working tree. A detached worktree at
+# HEAD is that commit as it is.
+VT_SOURCE_DIR="$ROOT_DIR/build/ghostty-vt-source"
+git -C "$SOURCE_DIR" worktree remove --force "$VT_SOURCE_DIR" 2>/dev/null || true
+git -C "$SOURCE_DIR" worktree add --detach "$VT_SOURCE_DIR" HEAD
+./Script/build-vt.sh "$VT_SOURCE_DIR" "$ROOT_DIR/build"
+mv "$ROOT_DIR/build/GhosttyVt.xcframework" "$VT_XCFRAMEWORK_PATH"
+git -C "$SOURCE_DIR" worktree remove --force "$VT_SOURCE_DIR"
 
 OLD_IFS=$IFS
 IFS=','
@@ -118,7 +130,9 @@ done
     "$XCFRAMEWORK_ZIP"
 
 if [ -n "$DOWNLOAD_URL" ]; then
-    ./Script/build-manifest.sh "$XCFRAMEWORK_ZIP" "$DOWNLOAD_URL"
+    # GhosttyVt is published beside GhosttyKit in the same storage release.
+    ./Script/build-manifest.sh "$XCFRAMEWORK_ZIP" "$DOWNLOAD_URL" \
+        "$VT_XCFRAMEWORK_ZIP" "${DOWNLOAD_URL%/*}/GhosttyVt.xcframework.zip"
 fi
 
 if [ "$SKIP_TESTS" -eq 0 ]; then
