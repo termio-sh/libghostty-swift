@@ -9,9 +9,11 @@
 # own build says as much (src/build/GhosttyLibVt.zig: "This could cause
 # problems if you're linking multiple static Zig libraries").
 #
-# Relinking each slice with `ld -r` and an exported-symbols list of `_ghostty_*`
-# keeps the API and turns everything else into private externs, so each
-# library keeps its own runtime and neither needs the other.
+# Relinking each slice with `ld -r` and an exported-symbols list of the public
+# API — every function its headers declare with GHOSTTY_API — keeps that API
+# and turns everything else into private externs, internal `ghostty_*`
+# helpers included (the SIMD ones are global too), so each library keeps its
+# own runtime and neither needs the other.
 #
 # usage: localize-vt-symbols.sh <GhosttyVt.xcframework>
 
@@ -21,7 +23,6 @@ XCFRAMEWORK=${1:?usage: $0 <GhosttyVt.xcframework>}
 PLIST="$XCFRAMEWORK/Info.plist"
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
-echo '_ghostty_*' > "$WORK/exports.txt"
 
 index=0
 while /usr/libexec/PlistBuddy -c "Print :AvailableLibraries:$index" "$PLIST" >/dev/null 2>&1; do
@@ -40,6 +41,22 @@ while /usr/libexec/PlistBuddy -c "Print :AvailableLibraries:$index" "$PLIST" >/d
     archive="$XCFRAMEWORK/$identifier/$library"
     slice="$WORK/$identifier"
     mkdir -p "$slice"
+    headers="$XCFRAMEWORK/$identifier/Headers"
+    python3 - "$headers" > "$slice/exports.txt" <<'PY'
+import pathlib, re, sys
+names = set()
+for header in pathlib.Path(sys.argv[1]).rglob("*.h"):
+    # wasm.h declares the allocator hooks only a WebAssembly build defines.
+    if header.name == "wasm.h":
+        continue
+    text = re.sub(r"/\*.*?\*/", " ", header.read_text(), flags=re.S)
+    for declaration in re.findall(r"GHOSTTY_API\b[^;{]*?\b(ghostty_\w+)\s*\(", text):
+        names.add(declaration)
+for name in sorted(names):
+    print("_" + name)
+PY
+    api=$(wc -l < "$slice/exports.txt" | tr -d ' ')
+    [ "$api" -gt 0 ] || { echo "[!] $identifier: no GHOSTTY_API declarations in $headers"; exit 1; }
     thinned=()
     for arch in $(lipo -archs "$archive"); do
         if [ "$(lipo -archs "$archive" | wc -w)" -gt 1 ]; then
@@ -49,15 +66,18 @@ while /usr/libexec/PlistBuddy -c "Print :AvailableLibraries:$index" "$PLIST" >/d
         fi
         ld -r -arch "$arch" -platform_version "$ld_platform" "$minimum" "$minimum" \
             -o "$slice/$arch.o" -force_load "$slice/$arch.a" \
-            -exported_symbols_list "$WORK/exports.txt"
+            -exported_symbols_list "$slice/exports.txt"
         ar rcs "$slice/$arch-localized.a" "$slice/$arch.o"
-        others=$(nm -gU "$slice/$arch.o" | grep -vc ' _ghostty_' || true)
-        exported=$(nm -gU "$slice/$arch.o" | grep -c ' _ghostty_' || true)
-        if [ "$others" -ne 0 ] || [ "$exported" -eq 0 ]; then
-            echo "[!] $identifier $arch: $exported API symbols, $others other globals"
+        nm -gU "$slice/$arch.o" | awk '{print $3}' | sort > "$slice/$arch.exported"
+        sort "$slice/exports.txt" > "$slice/declared.sorted"
+        extra=$(comm -23 "$slice/$arch.exported" "$slice/declared.sorted" | wc -l | tr -d ' ')
+        missing=$(comm -13 "$slice/$arch.exported" "$slice/declared.sorted" | wc -l | tr -d ' ')
+        if [ "$extra" -ne 0 ] || [ "$missing" -ne 0 ]; then
+            echo "[!] $identifier $arch: $extra globals beyond the API, $missing API functions not exported"
+            comm -3 "$slice/$arch.exported" "$slice/declared.sorted" | head -20
             exit 1
         fi
-        echo "[*] $identifier $arch: $exported API symbols exported, all else private"
+        echo "[*] $identifier $arch: exactly the $api API functions are global"
         thinned+=("$slice/$arch-localized.a")
     done
     if [ "${#thinned[@]}" -gt 1 ]; then

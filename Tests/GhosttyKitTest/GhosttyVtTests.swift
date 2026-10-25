@@ -1,3 +1,7 @@
+// The committed manifest is the last release's, and it gains GhosttyVt only
+// when a release that ships it regenerates it; CI and local builds test
+// against Package.local.swift, which always has it.
+#if canImport(GhosttyVt)
 import GhosttyKit
 import GhosttyVt
 import Testing
@@ -38,3 +42,4 @@ struct GhosttyVtTests {
         #expect(cols == 30)
     }
 }
+#endif

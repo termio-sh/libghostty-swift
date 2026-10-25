@@ -225,7 +225,7 @@ jobs:
       - name: Clone Ghostty
         run: |
           git clone https://github.com/ghostty-org/ghostty ./References/ghostty-upstream
-          git -C ./References/ghostty-upstream checkout "${{ needs.prepare.outputs.build_ref }}"
+          git -C ./References/ghostty-upstream checkout "${{ needs.prepare.outputs.resolved_sha }}"
 
       - name: Patch Zig with ghostty's toolchain patches
         # ghostty patches its Zig in flake.nix (nix/patches/zig-<version>-*.patch):
@@ -298,7 +298,7 @@ jobs:
       - name: Clone Ghostty
         run: |
           git clone https://github.com/ghostty-org/ghostty ./References/ghostty-upstream
-          git -C ./References/ghostty-upstream checkout "${{ needs.prepare.outputs.build_ref }}"
+          git -C ./References/ghostty-upstream checkout "${{ needs.prepare.outputs.resolved_sha }}"
 
       - name: Patch Zig with ghostty's toolchain patches
         # ghostty patches its Zig in flake.nix (nix/patches/zig-<version>-*.patch):
@@ -331,14 +331,7 @@ jobs:
           [ "$matched" -gt 0 ] || echo "no ghostty patches for Zig $series; using stock std"
 
       - name: Build libghostty-vt
-        run: |
-          set -euo pipefail
-          (cd ./References/ghostty-upstream && zig build -Demit-lib-vt -Doptimize=ReleaseFast)
-          mkdir -p ./build
-          cp -R ./References/ghostty-upstream/zig-out/lib/ghostty-vt.xcframework ./build/GhosttyVt.xcframework
-          ./Script/localize-vt-symbols.sh ./build/GhosttyVt.xcframework
-          (cd ./build && ditto -c -k --keepParent GhosttyVt.xcframework GhosttyVt.xcframework.zip)
-          ls ./build/GhosttyVt.xcframework
+        run: ./Script/build-vt.sh ./References/ghostty-upstream ./build
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
