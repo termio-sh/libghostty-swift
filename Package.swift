@@ -12,6 +12,10 @@ let package = Package(
         .library(name: "GhosttyTerminal", targets: ["GhosttyTerminal"]),
         .library(name: "ShellCraftKit", targets: ["ShellCraftKit"]),
         .library(name: "GhosttyTheme", targets: ["GhosttyTheme"]),
+        // libghostty-vt, the terminal core without ghostty's surface, for a
+        // host that renders it itself. Built from the same ghostty commit as
+        // `libghostty`, so the two can be linked into one app.
+        .library(name: "GhosttyVt", targets: ["GhosttyVt"]),
     ],
     dependencies: [
         .package(url: "https://github.com/Lakr233/MSDisplayLink.git", from: "2.1.0"),
@@ -44,12 +48,18 @@ let package = Package(
         ),
         .binaryTarget(
             name: "libghostty",
-            url: "https://github.com/termio-sh/libghostty-swift/releases/download/storage.1.1.9/GhosttyKit.xcframework.zip",
-            checksum: "725da5ac2d43eda4da46821222a30149a8076602c35da76862f43c381b8bfbd9"
+            url: "https://github.com/termio-sh/libghostty-swift/releases/download/storage.1.2.0/GhosttyKit.xcframework.zip",
+            checksum: "d6629c55ab4f99b9b82f7364bf44e2f261ed2a86c5d26f50c37d8821cc01175b"
+        ),
+        .binaryTarget(
+            name: "GhosttyVt",
+            url: "https://github.com/termio-sh/libghostty-swift/releases/download/storage.1.2.0/GhosttyVt.xcframework.zip",
+            checksum: "e23b2fadddde4e3f7300db33d37b545e731fdf13f21769294652f7c05aacd17c"
         ),
         .testTarget(
             name: "GhosttyKitTest",
-            dependencies: ["GhosttyKit", "GhosttyTerminal", "GhosttyTheme", "ShellCraftKit"]
+            dependencies: ["GhosttyKit", "GhosttyTerminal", "GhosttyTheme", "ShellCraftKit", "GhosttyVt"],
+            linkerSettings: [.linkedLibrary("c++")]
         ),
     ]
 )
