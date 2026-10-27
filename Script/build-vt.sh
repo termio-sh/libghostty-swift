@@ -58,6 +58,18 @@ xcodebuild -create-xcframework \
     -library "$WORK/simulator/libghostty-vt.a" -headers "$UPSTREAM/ios-arm64-simulator/Headers" \
     -output "$OUT/GhosttyVt.xcframework"
 
+# Xcode copies every static xcframework's headers into one include/ directory,
+# so this module map and GhosttyKit's would both land at include/module.modulemap
+# in an iOS app that links the two ("Multiple commands produce"). This one moves
+# into a directory named for its module, which Clang searches as well; its
+# header path points back up, so the headers' own <ghostty/vt/...> includes
+# still resolve from include/.
+for headers in "$OUT"/GhosttyVt.xcframework/*/Headers; do
+    mkdir -p "$headers/GhosttyVt"
+    sed 's#umbrella header "#umbrella header "../#' "$headers/module.modulemap" > "$headers/GhosttyVt/module.modulemap"
+    rm "$headers/module.modulemap"
+done
+
 "$SCRIPTS/localize-vt-symbols.sh" "$OUT/GhosttyVt.xcframework"
 (cd "$OUT" && ditto -c -k --keepParent GhosttyVt.xcframework GhosttyVt.xcframework.zip)
 echo "[*] $OUT/GhosttyVt.xcframework"
