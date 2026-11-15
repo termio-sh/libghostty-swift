@@ -30,7 +30,8 @@ fi
 apply_unified_patch() {
     local patch_file="$1"
 
-    if [ -d "$SOURCE_DIR/.git" ] && command -v git >/dev/null 2>&1; then
+    # -e, not -d: a git worktree's .git is a file.
+    if [ -e "$SOURCE_DIR/.git" ] && command -v git >/dev/null 2>&1; then
         if git -C "$SOURCE_DIR" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
             echo "[+] patch already applied: $(basename "$patch_file")"
             return
@@ -46,17 +47,19 @@ apply_unified_patch() {
         return
     fi
 
-    if patch -p1 -R --dry-run -d "$SOURCE_DIR" <"$patch_file" >/dev/null 2>&1; then
+    # -f: never let patch guess the direction. Without it a forward patch
+    # that has not been applied can "succeed" as a reverse dry run.
+    if patch -p1 -R -f --dry-run -d "$SOURCE_DIR" <"$patch_file" >/dev/null 2>&1; then
         echo "[+] patch already applied: $(basename "$patch_file")"
         return
     fi
 
-    if ! patch -p1 --dry-run -d "$SOURCE_DIR" <"$patch_file" >/dev/null 2>&1; then
+    if ! patch -p1 -f --dry-run -d "$SOURCE_DIR" <"$patch_file" >/dev/null 2>&1; then
         echo "[-] failed to validate patch: $patch_file"
         exit 1
     fi
 
-    patch -p1 -d "$SOURCE_DIR" <"$patch_file" >/dev/null
+    patch -p1 -f -d "$SOURCE_DIR" <"$patch_file" >/dev/null
     echo "[+] applied patch: $(basename "$patch_file")"
 }
 
