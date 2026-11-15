@@ -30,8 +30,10 @@ fi
 apply_unified_patch() {
     local patch_file="$1"
 
-    # -e, not -d: a git worktree's .git is a file.
-    if [ -e "$SOURCE_DIR/.git" ] && command -v git >/dev/null 2>&1; then
+    # Ask git rather than test for .git: a worktree's .git is a file, and a
+    # copied or pruned one points at a gitdir that no longer exists.
+    if command -v git >/dev/null 2>&1 &&
+        [ "$(git -C "$SOURCE_DIR" rev-parse --show-toplevel 2>/dev/null)" = "$(cd "$SOURCE_DIR" && pwd -P)" ]; then
         if git -C "$SOURCE_DIR" apply --check --reverse "$patch_file" >/dev/null 2>&1; then
             echo "[+] patch already applied: $(basename "$patch_file")"
             return
@@ -45,6 +47,14 @@ apply_unified_patch() {
         git -C "$SOURCE_DIR" apply "$patch_file"
         echo "[+] applied patch: $(basename "$patch_file")"
         return
+    fi
+
+    # patch(1) skips a "GIT binary patch" hunk and still exits 0, so the file
+    # it carries would silently be missing (0003's framedata.compressed).
+    if grep -q '^GIT binary patch' "$patch_file"; then
+        echo "[-] $(basename "$patch_file") has a binary hunk, which only git apply can write;"
+        echo "    run this on a git checkout of ghostty: $SOURCE_DIR is not one"
+        exit 1
     fi
 
     # -f: never let patch guess the direction. Without it a forward patch

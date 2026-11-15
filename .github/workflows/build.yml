@@ -50,6 +50,7 @@ jobs:
       - name: Determine Ghostty Ref
         id: ref
         run: |
+          set -o pipefail
           INPUT_REF="${{ github.event.inputs.ghostty_ref }}"
           INPUT_RELEASE_TAG="${{ github.event.inputs.release_tag }}"
           SKIP_RELEASE="${{ github.event.inputs.skip_release || 'false' }}"
@@ -75,6 +76,13 @@ jobs:
               gh api "repos/ghostty-org/ghostty/tags?per_page=100" --paginate --jq '.[].name' |
                 python3 -c 'import re, sys; tags=[l.strip() for l in sys.stdin if re.fullmatch(r"vt-\d+\.\d+\.\d+", l.strip())]; print(max(tags, key=lambda t: tuple(int(p) for p in t[3:].split("."))) if tags else "", end="")'
             )
+            # An empty answer is a failed lookup (rate limit, network), never
+            # "nothing to build": fail so a scheduled run does not go green
+            # having built nothing.
+            if [ -z "$BUILD_REF" ]; then
+              echo "[!] found no vt-X.Y.Z tag on ghostty-org/ghostty"
+              exit 1
+            fi
             echo "[*] tracking ghostty's newest libghostty-vt tag: $BUILD_REF"
           fi
 
