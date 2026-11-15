@@ -108,10 +108,9 @@ private enum TerminalCallbacks {
         var text: String?
         for index in 0 ..< contentsLen {
             let content = contents[index]
-            guard let mime = content.mime, isTextMime(String(cString: mime)) else { continue }
-            guard let data = content.data else { continue }
+            guard isTextMime(String(cString: content.mime)) else { continue }
             text = String(
-                decoding: UnsafeRawBufferPointer(start: data, count: content.len),
+                decoding: UnsafeRawBufferPointer(start: content.data, count: content.len),
                 as: UTF8.self
             )
             break
@@ -125,7 +124,7 @@ private enum TerminalCallbacks {
         userdata: UnsafeMutableRawPointer?,
         clipboard _: ghostty_clipboard_e,
         opaquePtr: UnsafeMutableRawPointer?,
-        mimes: UnsafePointer<UnsafePointer<CChar>?>?,
+        mimes: UnsafePointer<UnsafePointer<CChar>>,
         mimesLen: Int,
         list: Bool
     ) -> ghostty_clipboard_read_result_e {
@@ -145,14 +144,11 @@ private enum TerminalCallbacks {
         // sitting on the pasteboard is never loaded.
         var served: [ClipboardRepresentation] = []
         var seen = Set<String>()
-        if let mimes {
-            for index in 0 ..< mimesLen {
-                guard let pointer = mimes[index] else { continue }
-                let mime = String(cString: pointer)
-                guard !seen.contains(mime), isTextMime(mime) else { continue }
-                seen.insert(mime)
-                served.append(.init(mime: mime, bytes: Array(text.utf8)))
-            }
+        for index in 0 ..< mimesLen {
+            let mime = String(cString: mimes[index])
+            guard !seen.contains(mime), isTextMime(mime) else { continue }
+            seen.insert(mime)
+            served.append(.init(mime: mime, bytes: Array(text.utf8)))
         }
 
         let available = list ? ["text/plain"] : []
@@ -199,20 +195,18 @@ private enum TerminalCallbacks {
         if let contents = payload.contents {
             for index in 0 ..< payload.contents_len {
                 let content = contents[index]
-                guard let mime = content.mime else { continue }
                 var bytes: [UInt8] = []
-                if content.len > 0, let data = content.data {
-                    bytes = Array(UnsafeRawBufferPointer(start: data, count: content.len))
+                if content.len > 0 {
+                    bytes = Array(UnsafeRawBufferPointer(start: content.data, count: content.len))
                 }
-                served.append(.init(mime: String(cString: mime), bytes: bytes))
+                served.append(.init(mime: String(cString: content.mime), bytes: bytes))
             }
         }
 
         var available: [String] = []
         if let listing = payload.available {
             for index in 0 ..< payload.available_len {
-                guard let pointer = listing[index] else { continue }
-                available.append(String(cString: pointer))
+                available.append(String(cString: listing[index]))
             }
         }
 
@@ -243,6 +237,12 @@ private enum TerminalCallbacks {
         confirmed: Bool = false,
         remember: Bool = false
     ) {
+        // libghostty hands every clipboard request a state to complete it
+        // with; without one there is no request to answer.
+        guard let state else {
+            TerminalDebugLog.log(.input, "clipboard request arrived without its state; not completed")
+            return
+        }
         // libghostty copies out of this payload during the call, so the C
         // memory only has to outlive the call itself.
         var strings: [UnsafeMutablePointer<CChar>] = []
@@ -273,7 +273,7 @@ private enum TerminalCallbacks {
             ))
         }
 
-        var cAvailable: [UnsafePointer<CChar>?] = []
+        var cAvailable: [UnsafePointer<CChar>] = []
         for mime in available {
             guard let copy = strdup(mime) else { continue }
             strings.append(copy)
@@ -301,7 +301,7 @@ func terminalControllerWakeupCallback(userdata: UnsafeMutableRawPointer?) {
 }
 
 func terminalControllerActionCallback(
-    appPtr: ghostty_app_t?,
+    appPtr: ghostty_app_t,
     target: ghostty_target_s,
     action: ghostty_action_s
 ) -> Bool {
@@ -318,7 +318,7 @@ func terminalControllerCloseSurfaceCallback(
 func terminalControllerWriteClipboardCallback(
     userdata: UnsafeMutableRawPointer?,
     clipboard: ghostty_clipboard_e,
-    contents: UnsafePointer<ghostty_clipboard_content_s>?,
+    contents: UnsafePointer<ghostty_clipboard_content_s>,
     contentsLen: Int,
     confirm: Bool
 ) {
@@ -334,8 +334,8 @@ func terminalControllerWriteClipboardCallback(
 func terminalControllerReadClipboardCallback(
     userdata: UnsafeMutableRawPointer?,
     clipboard: ghostty_clipboard_e,
-    opaquePtr: UnsafeMutableRawPointer?,
-    mimes: UnsafePointer<UnsafePointer<CChar>?>?,
+    opaquePtr: UnsafeMutableRawPointer,
+    mimes: UnsafePointer<UnsafePointer<CChar>>,
     mimesLen: Int,
     list: Bool
 ) -> ghostty_clipboard_read_result_e {
@@ -351,8 +351,8 @@ func terminalControllerReadClipboardCallback(
 
 func terminalControllerConfirmReadClipboardCallback(
     userdata: UnsafeMutableRawPointer?,
-    confirm: UnsafePointer<ghostty_clipboard_confirm_s>?,
-    opaquePtr: UnsafeMutableRawPointer?,
+    confirm: UnsafePointer<ghostty_clipboard_confirm_s>,
+    opaquePtr: UnsafeMutableRawPointer,
     request: ghostty_clipboard_request_e
 ) {
     TerminalCallbacks.confirmReadClipboard(

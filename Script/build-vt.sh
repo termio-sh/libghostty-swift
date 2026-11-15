@@ -22,7 +22,7 @@ SCRIPTS=$(cd "$(dirname "$0")" && pwd)
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
-(cd "$SOURCE" && zig build -Demit-lib-vt -Doptimize=ReleaseFast)
+(cd "$SOURCE" && zig build -Demit-lib-vt -Demit-xcframework=true -Doptimize=ReleaseFast)
 UPSTREAM="$SOURCE/zig-out/lib/ghostty-vt.xcframework"
 
 library_of() {

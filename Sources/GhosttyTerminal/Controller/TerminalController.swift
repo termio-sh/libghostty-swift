@@ -339,7 +339,9 @@ public final class TerminalController {
     private static func initializeRuntimeIfNeeded() {
         guard !runtimeInitialized else { return }
         runtimeInitialized = true
-        ghostty_init(0, nil)
+        // No arguments: argc 0, and an argv that points at one empty slot.
+        var noArgument: UnsafeMutablePointer<CChar>?
+        ghostty_init(0, &noArgument)
     }
 
     deinit {

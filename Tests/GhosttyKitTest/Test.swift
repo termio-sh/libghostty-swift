@@ -15,11 +15,12 @@ class GhosttyKitTest: XCTestCase {
         var runtime = ghostty_runtime_config_s(
             userdata: nil,
             supports_selection_clipboard: false,
-            wakeup_cb: nil,
-            action_cb: nil,
-            read_clipboard_cb: nil,
-            confirm_read_clipboard_cb: nil,
-            write_clipboard_cb: nil,
+            // Every callback but close_surface is required now; these do nothing.
+            wakeup_cb: { _ in },
+            action_cb: { _, _, _ in false },
+            read_clipboard_cb: { _, _, _, _, _, _ in GHOSTTY_CLIPBOARD_READ_UNAVAILABLE },
+            confirm_read_clipboard_cb: { _, _, _, _ in },
+            write_clipboard_cb: { _, _, _, _, _ in },
             close_surface_cb: nil
         )
 
