@@ -65,12 +65,17 @@ jobs:
             BUILD_REF="$INPUT_REF"
             echo "[*] using provided ghostty ref: $BUILD_REF"
           else
-            # Track ghostty main HEAD. The perf/lock work lands on main long
-            # before ghostty cuts a semver tag (v1.3.1 was already ~4 months and
-            # 1000+ commits behind main), so tag-tracking would keep us stale.
-            # A manual workflow_dispatch can still pin a tag/commit via ghostty_ref.
-            BUILD_REF="main"
-            echo "[*] tracking ghostty main"
+            # Track ghostty's newest libghostty-vt release tag (vt-X.Y.Z), not
+            # main. Those tags carry a stable C ABI, and main moved the anchors
+            # this package's patches sit on every few weeks, which kept the
+            # weekly build red. termiod pins the same tags through
+            # libghostty-rs, so both ends can run one engine. A manual
+            # workflow_dispatch can still pin any tag or commit via ghostty_ref.
+            BUILD_REF=$(
+              gh api "repos/ghostty-org/ghostty/tags?per_page=100" --paginate --jq '.[].name' |
+                python3 -c 'import re, sys; tags=[l.strip() for l in sys.stdin if re.fullmatch(r"vt-\d+\.\d+\.\d+", l.strip())]; print(max(tags, key=lambda t: tuple(int(p) for p in t[3:].split("."))) if tags else "", end="")'
+            )
+            echo "[*] tracking ghostty's newest libghostty-vt tag: $BUILD_REF"
           fi
 
           if [ -z "$BUILD_REF" ]; then
@@ -111,6 +116,10 @@ jobs:
             fi
           else
             GHOSTTY_DESCRIBE="g$GHOSTTY_SHORT_SHA"
+          fi
+          # A build exactly on a vt-X.Y.Z tag is named after that tag.
+          if [[ "$BUILD_REF" =~ ^vt-[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            GHOSTTY_DESCRIBE="$BUILD_REF"
           fi
           echo "[*] ghostty describe: $GHOSTTY_DESCRIBE"
 

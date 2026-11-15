@@ -22,6 +22,19 @@ modifications inside ad-hoc build script edits.
 
 ## Rebase notes
 
+- Series re-checked against ghostty `vt-1.0.1` (108cacb), the first
+  libghostty-vt release tag, which this package now tracks instead of `main`.
+  Each patch was kept only where upstream still lacks what it adds.
+- `0002-host-managed-io.patch` — rebased onto `vt-1.0.1`. Only the
+  `include/ghostty.h` hunk changed: upstream 0e067ded7 put the header under
+  `#pragma clang assume_nonnull` and marked nullable pointers. The new
+  `receive_*` fields and the callback's `userdata` and byte pointer are
+  `GHOSTTY_NULLABLE`, because the exec backend leaves them unset and the Swift
+  wrapper unwraps them with `guard let`. Every other hunk is unchanged.
+- `0009-libcxx-apple-availability.sh` — deleted. Upstream dac134d25 (#13417)
+  defines `_LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS=1` for every unit this
+  patch covered (`pkg/apple-sdk/build.zig`, used by highway, simdutf and
+  ghostty's own SIMD sources).
 - `0002-host-managed-io.patch` — rebased onto ghostty `2da015c` (July 2026,
   the VT-throughput commit #13220). Host-managed IO is **not** upstream; this
   patch still adds it (the C API `ghostty_surface_write_buffer` /
